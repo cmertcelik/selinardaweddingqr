@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Düğüne Hoşgeldiniz</title>
+<style>
+  body {margin:0; min-height:100vh; font-family:'Segoe UI',Arial,sans-serif;
+        background: linear-gradient(135deg,#f8fafc 0%,#e0e7ff 100%);
+        display:flex; align-items:center; justify-content:center;}
+  .container {background:#fff; padding:48px 32px; border-radius:20px;
+              box-shadow:0 8px 32px rgba(60,72,88,0.12); text-align:center; min-width:320px;}
+  h1 {font-size:2.2rem; margin-bottom:32px; color:#3b3b3b; letter-spacing:1px;}
+  .upload-btn {display:inline-block; padding:14px 32px; font-size:1.1rem; border:none;
+               border-radius:8px; background:linear-gradient(90deg,#6366f1 0%,#60a5fa 100%);
+               color:#fff; cursor:pointer; transition:background 0.2s; font-weight:500;
+               box-shadow:0 2px 8px rgba(99,102,241,0.08);}
+  .upload-btn:hover {background:linear-gradient(90deg,#4f46e5 0%,#2563eb 100%);}
+  input[type="file"] {display:none;}
+  #status {margin-top:20px; font-size:1rem; color:#555;}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Düğüne Hoşgeldiniz</h1>
+  <label class="upload-btn" for="fileInput">Fotoğraf veya Video Yükle</label>
+  <input id="fileInput" type="file" accept="image/*,video/*" multiple>
+  <div id="status"></div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const statusBox = document.getElementById('status');
+
+// Maksimum toplam boyut 5 GB
+const MAX_TOTAL_SIZE = 5 * 1024 * 1024 * 1024; // 5 GB
+
+let totalUploaded = 0;
+
+fileInput.addEventListener('change', async (event) => {
+  const files = event.target.files;
+  if (!files.length) return;
+
+  for (let file of files) {
+    if (totalUploaded + file.size > MAX_TOTAL_SIZE) {
+      statusBox.innerHTML += `<p>❌ Toplam yük boyutu 5GB sınırını aşıyor: ${file.name}</p>`;
+      continue;
+    }
+
+    // 1️⃣ Backend'den upload token al
+    let tokenResponse;
+    try {
+      tokenResponse = await fetch('/api/get-upload-token', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({filename: file.name})
+      });
+      if (!tokenResponse.ok) throw new Error('Token alınamadı');
+    } catch(err) {
+      statusBox.innerHTML += `<p>⚠️ Token alınamadı: ${file.name}</p>`;
+      continue;
+    }
+
+    const {uploadUrl} = await tokenResponse.json();
+
+    // 2️⃣ Dosyayı backend üzerinden storage’a gönder
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const uploadResp = await fetch(uploadUrl, {method:'PUT', body:formData});
+      if (uploadResp.ok) {
+        totalUploaded += file.size;
+        statusBox.innerHTML += `<p>✅ ${file.name} yüklendi.</p>`;
+      } else {
+        statusBox.innerHTML += `<p>❌ ${file.name} yüklenemedi (${uploadResp.status})</p>`;
+      }
+    } catch(err) {
+      statusBox.innerHTML += `<p>⚠️ ${file.name} yüklenirken hata: ${err.message}</p>`;
+    }
+  }
+});
+</script>
+</body>
+</html>
